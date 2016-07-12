@@ -1,3 +1,4 @@
+$$\alpha = a(b-1)$$
 Python code for solving the Schrodinger Equation for some
 quantum physics problems.
 
