@@ -1,4 +1,4 @@
-** This is a bold **
+__This is a bold__
 
 Python code for solving the Schrodinger Equation for some
 quantum physics problems.
