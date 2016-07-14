@@ -1,7 +1,3 @@
-# Python code for solving the Schrodinger Equation in 
-# one-dimentional problems using the B-splines functions
-# for the implementation of the variational Rayleight-Rithz
-# Method.
 #######################################################################
 #######################################################################
 import numpy as np
@@ -26,7 +22,7 @@ def knots_sequence(grado, type, N_intervalos, beta, a, b):
 
 ## Defino el potencial del pozo
 def V_potencial_ho(me, omega, x):
-	U = 0.5*omega**2*me*x**2;
+	U = 0.5*me*omega**2*x**2;
 	return U
 
 #######################################
@@ -34,17 +30,17 @@ def V_potencial_ho(me, omega, x):
 #######################################
 
 ## Parametros fisicos del problema
-me				 = 1; ## Masa de la particula
+me = 1.0; ## Masa de la particula
 
-omega_vec = np.linspace(0.0, 10.0, 100);
+omega_vec = np.linspace(0.0, 5.0, 3);
 
 ## Separo las coordenadas y tomo distinta base en r y en z
-Xmin = 0.0;
-Xmax = 100.0;
+Xmin = -10.0;
+Xmax =  10.0;
 
 N_intervalos_x = 100;
 N_cuad = 200;
-grado = 4;
+grado = 3;
 kord = grado + 1;
 beta = 0.0065; ## Cte de decaimiento para los knots en la distribucion exponencial
 N_splines_x = N_intervalos_x + grado;
@@ -62,9 +58,7 @@ f.write("# Total size of the matrices N_dim = N_base_r = {0}\n".format(N_dim))
 f.write("# Cte de separacion de knots en dist exp beta = {0}\n".format(beta))
 f.write("# Orden de la cuadratura N_cuad = {0}\n".format(N_cuad))
 f.write("# Masa de la particula me = {0} en UA\n".format(me))
-f.write("# Momento angular l_angular = {0}\n".format(l_angular))
 f.write("# Autovalores calculados\n")
-
 
 ## Vector de knots para definir los B-splines, distribucion uniforme
 knots = knots_sequence(grado, 'uniform', N_intervalos_x, beta, Xmin, Xmax);
@@ -82,6 +76,7 @@ for i in range(N_intervalos_x+1):
 	x_nodos = np.hstack((x_nodos, aux_x));
 	wx_pesos = np.hstack((wx_pesos, aux_w));
 
+
 wx_pesos = np.tile(wx_pesos, (N_splines_x, 1));
 
 ## B-splines en la coordenada r
@@ -90,7 +85,7 @@ basis = Bspline(knots, grado);
 bsx  = [basis._Bspline__basis(i, basis.p) for i in x_nodos]; # evaluo los bsplines
 dbsx = [basis.d(i) for i in x_nodos];                        # evaluo las derivadas de los bsplines
 
-
+splines = np.array([[bsx[i][j] for j in range(1, N_splines_x-1)] for i in range(N_cuad*(N_intervalos_x+1))]) ;
 ## Matriz de solapamiento en r
 Sx = np.dot(np.transpose(bsx), (np.transpose(wx_pesos)*bsx));
 Sx = np.array([[Sx[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_splines_x-1)]);
@@ -99,24 +94,23 @@ Sx = np.array([[Sx[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_spl
 Tx = 0.5/me*np.dot(np.transpose(dbsx), (np.transpose(wx_pesos)*dbsx));
 Tx = np.array([[Tx[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_splines_x-1)]);
 
-## Matriz de momento angular al cuadrado
-L = L_angular(me, l_angular, x_nodos);
-L = np.tile(L, (N_splines_x, 1));
-VL = np.dot(np.transpose(bsx), (np.transpose(L)*np.transpose(wx_pesos)*bsx));
-VL = np.array([[VL[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_splines_x-1)]);
+## Matriz de energia de potencial del pozo de potencial
+U = V_potencial_ho(me, 1.0, x_nodos);
+U = np.tile(U, (N_splines_x, 1));
+Vp_x = np.dot(np.transpose(bsx), (np.transpose(U)*np.transpose(wx_pesos)*bsx));
+Vp_x = np.array([[Vp_x[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_splines_x-1)]);
 
 auval = np.zeros(N_dim);
 for omega in omega_vec:
 
 	## Matriz de energia de potencial del pozo de potencial
-	# Primero en la variable r
 	U = V_potencial_ho(me, omega, x_nodos);
 	U = np.tile(U, (N_splines_x, 1));
 	Vp_x = np.dot(np.transpose(bsx), (np.transpose(U)*np.transpose(wx_pesos)*bsx));
 	Vp_x = np.array([[Vp_x[i][j] for i in range(1,N_splines_x-1)] for j in range(1,N_splines_x-1)]);
-	
+
 	## El hamiltoniano en la coordenada r es
-	Hx = Tx + VL + Vp_x;
+	Hx = Tx + Vp_x;
 
 	e, auvec = LA.eigh(Hx, Sx);
 
@@ -128,14 +122,20 @@ for omega in omega_vec:
 
 	f.write("\n")
 
-auval = np.array([[auval[i][j] for i in range(1,np.size(omega_vec)+1)] for j in range(N_dim)]);
+	ge = np.array([auvec[i][0] for i in range(N_dim)]);
 
-for i in range(10):
-	estado = np.zeros(np.size(omega_vec));
-	for j in range(np.size(omega_vec)):
- 		estado[j] = auval[i][j];
-
- 	plt.plot(omega_vec, estado, '-')
+	funcion_onda = np.dot(ge, np.transpose(splines));
+	plt.plot(x_nodos, funcion_onda, '-')
 
 plt.show()
+# auval = np.array([[auval[i][j] for i in range(1,np.size(omega_vec)+1)] for j in range(N_dim)]);
+# 
+# for i in range(1):
+# 	estado = np.zeros(np.size(omega_vec));
+# 	for j in range(np.size(omega_vec)):
+#  		estado[j] = auval[i][j];
+# 
+#  	plt.plot(omega_vec, estado, '-')
+# 
+# plt.show()
 f.close()
